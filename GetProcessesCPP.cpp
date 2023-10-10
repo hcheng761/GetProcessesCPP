@@ -4,25 +4,54 @@
 #include <Windows.h>
 #include <string>
 #include <stdio.h>
+#include <TlHelp32.h>
 
-DWORD ProcessID;
+static int numProcessors;
+
 
 int main()
 {
-    SetConsoleTitle("Process ID");
+    SYSTEM_INFO sysInfo;
+    HANDLE hProcsSnap;
+    HANDLE sysModulesScreenshot;
+    DWORD dwPriorityClass;
 
-    HWND hwnd = FindWindowA(0, "Calculator");
-    GetWindowThreadProcessId(hwnd, &ProcessID);
+    GetSystemInfo(&sysInfo);
+    numProcessors = sysInfo.dwNumberOfProcessors;
+    
+    hProcsSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 
-    if (hwnd)
+    if (hProcsSnap != INVALID_HANDLE_VALUE)
     {
-        std::cout << ProcessID << std::endl;
+        PROCESSENTRY32 prEntry;
+        prEntry.dwSize = sizeof(PROCESSENTRY32);
+        
+        if (!Process32First(hProcsSnap, &prEntry))
+        {
+            std::cout << "PROCESS32FIRST" << '\n';
+            CloseHandle(hProcsSnap);
+            return 0;
+        }
+
+        HANDLE hProcess;
+
+        do {
+            dwPriorityClass = 0;
+            hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, prEntry.th32ProcessID);
+
+            if (hProcess != NULL)
+            {
+                dwPriorityClass = GetPriorityClass(hProcess);
+                CloseHandle(hProcess);
+                std::cout << prEntry.th32ProcessID << '\n';
+            }
+
+        } while (Process32Next(hProcsSnap, &prEntry));
+        CloseHandle(hProcsSnap);
     }
 
-    else
-    {
-        std::cout << "Windows not found." << std::endl;
-    }
+    //HWND hwnd = FindWindowA(0, "Calculator");
+    //GetWindowThreadProcessId(hwnd, &ProcessID);
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
