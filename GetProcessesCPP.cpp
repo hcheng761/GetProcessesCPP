@@ -14,6 +14,7 @@ std::string ProcessIDName(HANDLE handle, DWORD pid)
     std::string name;
     DWORD buffSize = 1024;
     CHAR buffer[1024];
+    LPWSTR windowName;
     if (QueryFullProcessImageNameA(handle, 0, buffer, &buffSize))
     {
         name = buffer;
@@ -52,11 +53,12 @@ int main()
     HANDLE sysModulesScreenshot;
     DWORD dwPriorityClass;
 
+    system("color 07");
     GetSystemInfo(&sysInfo);
     numProcessors = sysInfo.dwNumberOfProcessors;
     
     hProcsSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    UINT32 processNum = 0;
+    UINT32 critProcNum = 0;
 
     if (hProcsSnap != INVALID_HANDLE_VALUE)
     {
@@ -75,15 +77,16 @@ int main()
         {
             dwPriorityClass = 0;
             hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, prEntry.th32ProcessID);
+            BOOL critProc;
 
-            if (hProcess)
+            if (hProcess && IsProcessCritical(hProcess, &critProc))
             {
-                std::cout << ProcessIDName(hProcess, prEntry.th32ProcessID) << '\n';
+                std::cout << prEntry.th32ProcessID << ": " << ProcessIDName(hProcess, prEntry.th32ProcessID) << '\n';
+                critProcNum++;
             }
-            processNum++;
         } 
         CloseHandle(hProcsSnap);
-        std::cout << processNum << '\n';
+        std::cout << std::endl << critProcNum << '\n';
     }
 }
 
