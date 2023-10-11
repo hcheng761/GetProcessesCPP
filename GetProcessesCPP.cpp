@@ -5,9 +5,45 @@
 #include <string>
 #include <stdio.h>
 #include <TlHelp32.h>
+#include <Psapi.h>
 
 static int numProcessors;
 
+std::string ProcessIDName(HANDLE handle, DWORD pid)
+{
+    std::string name;
+    DWORD buffSize = 1024;
+    CHAR buffer[1024];
+    if (QueryFullProcessImageNameA(handle, 0, buffer, &buffSize))
+    {
+        name = buffer;
+    }
+
+    return name;
+}
+
+void ListProcessModules(DWORD dwPID)
+{
+    std::cout << "LIST OF PROCESS MODULES FOR " << dwPID << '\n';
+
+    HANDLE hModuleSnap = INVALID_HANDLE_VALUE;
+    MODULEENTRY32 me32;
+    hModuleSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, dwPID);
+    me32.dwSize = sizeof(MODULEENTRY32);
+
+    if (!Module32First(hModuleSnap, &me32))
+    {
+        CloseHandle(hModuleSnap);
+        return;
+    }
+
+    while (Module32Next(hModuleSnap, &me32))
+    {
+        std::cout << me32.th32ModuleID << '\n';
+    }
+    CloseHandle(hModuleSnap);
+    return;
+}
 
 int main()
 {
@@ -20,6 +56,7 @@ int main()
     numProcessors = sysInfo.dwNumberOfProcessors;
     
     hProcsSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    UINT32 processNum = 0;
 
     if (hProcsSnap != INVALID_HANDLE_VALUE)
     {
@@ -34,24 +71,20 @@ int main()
         }
 
         HANDLE hProcess;
-
-        do {
+        while (Process32Next(hProcsSnap, &prEntry))
+        {
             dwPriorityClass = 0;
-            hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, prEntry.th32ProcessID);
+            hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, prEntry.th32ProcessID);
 
-            if (hProcess != NULL)
+            if (hProcess)
             {
-                dwPriorityClass = GetPriorityClass(hProcess);
-                CloseHandle(hProcess);
-                std::cout << prEntry.th32ProcessID << '\n';
+                std::cout << ProcessIDName(hProcess, prEntry.th32ProcessID) << '\n';
             }
-
-        } while (Process32Next(hProcsSnap, &prEntry));
+            processNum++;
+        } 
         CloseHandle(hProcsSnap);
+        std::cout << processNum << '\n';
     }
-
-    //HWND hwnd = FindWindowA(0, "Calculator");
-    //GetWindowThreadProcessId(hwnd, &ProcessID);
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
