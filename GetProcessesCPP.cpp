@@ -6,8 +6,13 @@
 #include <stdio.h>
 #include <TlHelp32.h>
 #include <Psapi.h>
+#include <vector>
+#include <unordered_set>
+#include <unordered_map>
 
 static int numProcessors;
+static std::unordered_map<std::string,int>processSet;
+static std::unordered_set<std::string>openProcessWindows;
 
 std::string ProcessIDName(HANDLE handle, DWORD pid)
 {
@@ -18,6 +23,7 @@ std::string ProcessIDName(HANDLE handle, DWORD pid)
     if (QueryFullProcessImageNameA(handle, 0, buffer, &buffSize))
     {
         name = buffer;
+        processSet[name]++;
     }
 
     return name;
@@ -32,18 +38,42 @@ void ListProcessModules(DWORD dwPID)
     hModuleSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, dwPID);
     me32.dwSize = sizeof(MODULEENTRY32);
 
-    if (!Module32First(hModuleSnap, &me32))
+    if (Module32First(hModuleSnap, &me32))
     {
-        CloseHandle(hModuleSnap);
-        return;
+        while (Module32Next(hModuleSnap, &me32))
+        {
+            std::cout << me32.th32ModuleID << '\n';
+        }
     }
 
-    while (Module32Next(hModuleSnap, &me32))
-    {
-        std::cout << me32.th32ModuleID << '\n';
-    }
     CloseHandle(hModuleSnap);
     return;
+}
+
+BOOL CALLBACK enumWindowsCB(HWND hwnd, LPARAM lParam)
+{
+
+    DWORD buffSize = 1024;
+    CHAR bufferd[1024];
+    if (QueryFullProcessImageNameA(hwnd, 0, bufferd, &buffSize))
+    {
+        std::string s = bufferd;
+        std::cout << s << '\n';
+    }
+
+    int length = GetWindowTextLength(hwnd);
+    char* buffer = new char[length + 1];
+    GetWindowText(hwnd, buffer, length + 1);
+    std::string windowTitle(buffer);
+    delete[] buffer;
+
+    // List visible windows with a non-empty title
+    std::unordered_set <std::string>& windows = *reinterpret_cast<std::unordered_set<std::string>*>(lParam);
+    if (IsWindowVisible(hwnd) && length != 0) {
+        std::cout  << windowTitle << std::endl;
+        windows.insert(windowTitle);
+    }
+    return TRUE;
 }
 
 int main()
@@ -81,12 +111,13 @@ int main()
 
             if (hProcess && IsProcessCritical(hProcess, &critProc))
             {
-                std::cout << prEntry.th32ProcessID << ": " << ProcessIDName(hProcess, prEntry.th32ProcessID) << '\n';
+                ProcessIDName(hProcess, prEntry.th32ProcessID);
                 critProcNum++;
             }
-        } 
+        }
+        //Current open windows
+        EnumWindows(enumWindowsCB, reinterpret_cast<LPARAM>(&openProcessWindows));
         CloseHandle(hProcsSnap);
-        std::cout << std::endl << critProcNum << '\n';
     }
 }
 
