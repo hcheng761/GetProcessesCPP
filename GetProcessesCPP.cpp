@@ -9,21 +9,22 @@
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
+#include <map>
 
 static int numProcessors;
-static std::unordered_map<std::string,int>processSet;
-static std::unordered_set<std::string>openProcessWindows;
+static std::map<std::wstring,int>processMap;
+static std::unordered_set<std::wstring>openProcessWindows;
 
-std::string ProcessIDName(HANDLE handle, DWORD pid)
+std::wstring ProcessIDName(HANDLE handle, DWORD pid)
 {
-    std::string name;
-    DWORD buffSize = 1024;
-    CHAR buffer[1024];
+    std::wstring name;
+    DWORD buffSize = MAX_PATH;
+    wchar_t* path = new wchar_t[MAX_PATH];
     LPWSTR windowName;
-    if (QueryFullProcessImageNameA(handle, 0, buffer, &buffSize))
+    if (QueryFullProcessImageNameW(handle, 0, path, &buffSize))
     {
-        name = buffer;
-        processSet[name]++;
+        name = path;
+        processMap[name]++;
     }
 
     return name;
@@ -52,27 +53,28 @@ void ListProcessModules(DWORD dwPID)
 
 BOOL CALLBACK enumWindowsCB(HWND hwnd, LPARAM lParam)
 {
+    if (!IsWindowVisible(hwnd))
+        return TRUE;
 
-    DWORD buffSize = 1024;
-    CHAR bufferd[1024];
-    if (QueryFullProcessImageNameA(hwnd, 0, bufferd, &buffSize))
+    int length = GetWindowTextLength(hwnd) + 1;
+    wchar_t* buffer = new wchar_t[length];
+    GetWindowTextW(hwnd, buffer, length);
+
+    DWORD id; GetWindowThreadProcessId(hwnd, &id);
+
+    wchar_t* path = new wchar_t[MAX_PATH];
+    DWORD size = MAX_PATH;
+    HANDLE hProc = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, id);
+    if (QueryFullProcessImageNameW(hProc, 0, path, &size))
     {
-        std::string s = bufferd;
-        std::cout << s << '\n';
+        std::wstring ws = path;
+        openProcessWindows.insert(ws);
     }
-
-    int length = GetWindowTextLength(hwnd);
-    char* buffer = new char[length + 1];
-    GetWindowText(hwnd, buffer, length + 1);
-    std::string windowTitle(buffer);
-    delete[] buffer;
-
-    // List visible windows with a non-empty title
+    /*
     std::unordered_set <std::string>& windows = *reinterpret_cast<std::unordered_set<std::string>*>(lParam);
     if (IsWindowVisible(hwnd) && length != 0) {
-        std::cout  << windowTitle << std::endl;
         windows.insert(windowTitle);
-    }
+    }*/
     return TRUE;
 }
 
@@ -117,6 +119,18 @@ int main()
         }
         //Current open windows
         EnumWindows(enumWindowsCB, reinterpret_cast<LPARAM>(&openProcessWindows));
+
+        for (auto& i : openProcessWindows)
+        {
+            std::wcout << i << '\n';
+        }
+        std::cout << std::endl;
+        for (auto& [key, val] : processMap)
+        {
+            std::wcout << key << ": " << val << '\n';
+        }
+        //std::cout << processSet.size() << " " << openProcessWindows.size() << '\n';
+
         CloseHandle(hProcsSnap);
     }
 }
