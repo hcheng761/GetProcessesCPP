@@ -15,16 +15,24 @@ static int numProcessors;
 static std::map<std::wstring,int>processMap;
 static std::unordered_set<std::wstring>openProcessWindows;
 
+bool CheckIfChildProcess(HANDLE p, HANDLE c)
+{
+    return false;
+}
+
 std::wstring ProcessIDName(HANDLE handle, DWORD pid)
 {
     std::wstring name;
     DWORD buffSize = MAX_PATH;
     wchar_t* path = new wchar_t[MAX_PATH];
     LPWSTR windowName;
+
     if (QueryFullProcessImageNameW(handle, 0, path, &buffSize))
     {
         name = path;
-        processMap[name]++;
+        //std::wcout << name << " " << '\n';
+        if (processMap.find(name) != processMap.end())
+            processMap[name]++;
     }
 
     return name;
@@ -68,13 +76,10 @@ BOOL CALLBACK enumWindowsCB(HWND hwnd, LPARAM lParam)
     if (QueryFullProcessImageNameW(hProc, 0, path, &size))
     {
         std::wstring ws = path;
-        openProcessWindows.insert(ws);
+        processMap[ws] = 0;
     }
-    /*
-    std::unordered_set <std::string>& windows = *reinterpret_cast<std::unordered_set<std::string>*>(lParam);
-    if (IsWindowVisible(hwnd) && length != 0) {
-        windows.insert(windowTitle);
-    }*/
+    
+    //std::unordered_set <std::string>& windows = *reinterpret_cast<std::unordered_set<std::string>*>(lParam);
     return TRUE;
 }
 
@@ -99,10 +104,11 @@ int main()
         
         if (!Process32First(hProcsSnap, &prEntry))
         {
-            std::cout << "PROCESS32FIRST" << '\n';
             CloseHandle(hProcsSnap);
             return 0;
         }
+
+        EnumWindows(enumWindowsCB, reinterpret_cast<LPARAM>(&processMap));
 
         HANDLE hProcess;
         while (Process32Next(hProcsSnap, &prEntry))
@@ -113,23 +119,16 @@ int main()
 
             if (hProcess && IsProcessCritical(hProcess, &critProc))
             {
+                std::wcout << prEntry.th32ParentProcessID << '\n';
                 ProcessIDName(hProcess, prEntry.th32ProcessID);
                 critProcNum++;
             }
         }
-        //Current open windows
-        EnumWindows(enumWindowsCB, reinterpret_cast<LPARAM>(&openProcessWindows));
 
-        for (auto& i : openProcessWindows)
-        {
-            std::wcout << i << '\n';
-        }
-        std::cout << std::endl;
         for (auto& [key, val] : processMap)
         {
             std::wcout << key << ": " << val << '\n';
         }
-        //std::cout << processSet.size() << " " << openProcessWindows.size() << '\n';
 
         CloseHandle(hProcsSnap);
     }
