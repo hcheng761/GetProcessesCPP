@@ -32,6 +32,8 @@ std::wstring ProcessIDName(HANDLE handle, DWORD pid)
         name = path;
         if (processMap.find(name) != processMap.end())
             processMap[name]++;
+
+        std::wcout << name << ": " << pid << '\n';
     }
 
     return name;
@@ -64,7 +66,6 @@ BOOL CALLBACK enumWindowsCB(HWND hwnd, LPARAM lParam)
     int length = GetWindowTextLength(hwnd) + 1;
     wchar_t* buffer = new wchar_t[length];
     GetWindowTextW(hwnd, buffer, length);
-
     DWORD id; GetWindowThreadProcessId(hwnd, &id);
 
     wchar_t* path = new wchar_t[MAX_PATH];
@@ -74,10 +75,16 @@ BOOL CALLBACK enumWindowsCB(HWND hwnd, LPARAM lParam)
     {
         std::wstring ws = path;
         processMap[ws] = 0;
+        std::wcout << ws << ": " << id << '\n';
     }
     
     //std::unordered_set <std::string>& windows = *reinterpret_cast<std::unordered_set<std::string>*>(lParam);
     return TRUE;
+}
+
+void GetCPUUsage(DWORD pid)
+{
+
 }
 
 int main()
@@ -105,21 +112,21 @@ int main()
         }
 
         EnumWindows(enumWindowsCB, reinterpret_cast<LPARAM>(&processMap));
-
+        std::cout << '\n' << '\n';
         HANDLE hProcess;
         while (Process32Next(hProcsSnap, &prEntry))
         {
-            hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, prEntry.th32ProcessID);
+            hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, prEntry.th32ParentProcessID);
             BOOL critProc;
 
             if (hProcess && IsProcessCritical(hProcess, &critProc))
             {
-                std::wcout << prEntry.th32ParentProcessID << '\n';
-                ProcessIDName(hProcess, prEntry.th32ProcessID);
+                ProcessIDName(hProcess, prEntry.th32ParentProcessID);
                 critProcNum++;
             }
         }
 
+        std::cout << '\n' << '\n';
         for (auto& [key, val] : processMap)
         {
             std::wcout << key << ": " << val << '\n';
