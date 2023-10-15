@@ -30,7 +30,6 @@ std::wstring ProcessIDName(HANDLE handle, DWORD pid)
     if (QueryFullProcessImageNameW(handle, 0, path, &buffSize))
     {
         name = path;
-        //std::wcout << name << " " << '\n';
         if (processMap.find(name) != processMap.end())
             processMap[name]++;
     }
@@ -40,8 +39,6 @@ std::wstring ProcessIDName(HANDLE handle, DWORD pid)
 
 void ListProcessModules(DWORD dwPID)
 {
-    std::cout << "LIST OF PROCESS MODULES FOR " << dwPID << '\n';
-
     HANDLE hModuleSnap = INVALID_HANDLE_VALUE;
     MODULEENTRY32 me32;
     hModuleSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, dwPID);
@@ -88,7 +85,6 @@ int main()
     SYSTEM_INFO sysInfo;
     HANDLE hProcsSnap;
     HANDLE sysModulesScreenshot;
-    DWORD dwPriorityClass;
 
     system("color 07");
     GetSystemInfo(&sysInfo);
@@ -113,7 +109,6 @@ int main()
         HANDLE hProcess;
         while (Process32Next(hProcsSnap, &prEntry))
         {
-            dwPriorityClass = 0;
             hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, prEntry.th32ProcessID);
             BOOL critProc;
 
