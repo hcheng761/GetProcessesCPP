@@ -12,8 +12,7 @@
 #include <map>
 
 static int numProcessors;
-static std::map<std::wstring,int>processMap;
-static std::unordered_set<std::wstring>openProcessWindows;
+static std::map<std::wstring,std::vector<DWORD>>processMap; //executable and # of subprocesses
 
 bool CheckIfChildProcess(HANDLE p, HANDLE c)
 {
@@ -31,31 +30,12 @@ std::wstring ProcessIDName(HANDLE handle, DWORD pid)
     {
         name = path;
         if (processMap.find(name) != processMap.end())
-            processMap[name]++;
+            processMap[name].push_back(pid);
 
         std::wcout << name << ": " << pid << '\n';
     }
 
     return name;
-}
-
-void ListProcessModules(DWORD dwPID)
-{
-    HANDLE hModuleSnap = INVALID_HANDLE_VALUE;
-    MODULEENTRY32 me32;
-    hModuleSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, dwPID);
-    me32.dwSize = sizeof(MODULEENTRY32);
-
-    if (Module32First(hModuleSnap, &me32))
-    {
-        while (Module32Next(hModuleSnap, &me32))
-        {
-            std::cout << me32.th32ModuleID << '\n';
-        }
-    }
-
-    CloseHandle(hModuleSnap);
-    return;
 }
 
 BOOL CALLBACK enumWindowsCB(HWND hwnd, LPARAM lParam)
@@ -71,10 +51,12 @@ BOOL CALLBACK enumWindowsCB(HWND hwnd, LPARAM lParam)
     wchar_t* path = new wchar_t[MAX_PATH];
     DWORD size = MAX_PATH;
     HANDLE hProc = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, id);
+
     if (QueryFullProcessImageNameW(hProc, 0, path, &size))
     {
         std::wstring ws = path;
-        processMap[ws] = 0;
+        if (processMap.find(ws) == processMap.end())
+            processMap[ws] = std::vector<DWORD>();
         std::wcout << ws << ": " << id << '\n';
     }
     
@@ -84,7 +66,17 @@ BOOL CALLBACK enumWindowsCB(HWND hwnd, LPARAM lParam)
 
 void GetCPUUsage(DWORD pid)
 {
+    HANDLE hProcess;
+    PROCESS_MEMORY_COUNTERS pmc;
 
+    hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+    if (GetProcessMemoryInfo(hProcess, &pmc, sizeof(pmc)))
+    {
+        std::wcout << pmc.QuotaPeakPagedPoolUsage << '\n';
+        std::wcout << pmc.QuotaPeakNonPagedPoolUsage << '\n';
+    }
+
+    CloseHandle(hProcess);
 }
 
 int main()
@@ -126,13 +118,25 @@ int main()
             }
         }
 
-        std::cout << '\n' << '\n';
-        for (auto& [key, val] : processMap)
+        for (auto& [key, v] : processMap)
         {
-            std::wcout << key << ": " << val << '\n';
+            for (auto& vi : v)
+                std::wcout << key << ": " << vi << '\n';
+            std::cout << '\n';
         }
 
         CloseHandle(hProcsSnap);
+
+        DWORD cpid;
+        HWND chromeHwnd = FindWindowA(0, ("Spotify"));
+        GetWindowThreadProcessId(chromeHwnd, &cpid);
+
+        return 0;
+        while (true)
+        {
+            GetCPUUsage(5776);
+            Sleep(1000);
+        }
     }
 }
 
