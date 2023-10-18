@@ -13,6 +13,32 @@
 
 static int numProcessors;
 static std::map<std::wstring,std::vector<DWORD>>processMap; //executable and # of subprocesses
+static std::map<std::wstring,std::vector<DWORD>>parentMap;
+
+void WalkVS(DWORD d, HANDLE hSnap)
+{
+    //PROCESSENTRY32 pr32;
+    //pr32.dwSize = sizeof(PROCESSENTRY32);
+    //DWORD id = d;
+
+    //HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, id);
+    //while (h != NULL)
+    //{
+    //    wchar_t* path = new wchar_t[MAX_PATH];
+    //    DWORD size = MAX_PATH;
+
+    //    if (QueryFullProcessImageNameW(h, 0, path, &size))
+    //    {
+    //        std::wstring ws = path;
+    //        std::wcout << ws << ": " << id << '\n';
+    //    }
+
+
+    //    CloseHandle(h);
+    //    id = pr32.th32ParentProcessID;
+    //    h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, id);
+    //}
+}
 
 bool CheckIfChildProcess(HANDLE p, HANDLE c)
 {
@@ -31,7 +57,6 @@ std::wstring ProcessIDName(HANDLE handle, DWORD pid)
         name = path;
         if (processMap.find(name) != processMap.end())
             processMap[name].push_back(pid);
-
         std::wcout << name << ": " << pid << '\n';
     }
 
@@ -57,7 +82,6 @@ BOOL CALLBACK enumWindowsCB(HWND hwnd, LPARAM lParam)
         std::wstring ws = path;
         if (processMap.find(ws) == processMap.end())
             processMap[ws] = std::vector<DWORD>();
-        std::wcout << ws << ": " << id << '\n';
     }
     
     //std::unordered_set <std::string>& windows = *reinterpret_cast<std::unordered_set<std::string>*>(lParam);
@@ -108,21 +132,24 @@ int main()
         HANDLE hProcess;
         while (Process32Next(hProcsSnap, &prEntry))
         {
-            hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, prEntry.th32ParentProcessID);
+            hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, prEntry.th32ProcessID);
             BOOL critProc;
 
             if (hProcess && IsProcessCritical(hProcess, &critProc))
             {
-                ProcessIDName(hProcess, prEntry.th32ParentProcessID);
+                //if (prEntry.th32ParentProcessID == 3400)
+                //{
+                //    WalkVS(prEntry.th32ProcessID, hProcsSnap);
+                //    break;
+                //}
+                ProcessIDName(hProcess, prEntry.th32ProcessID);
                 critProcNum++;
             }
         }
 
         for (auto& [key, v] : processMap)
         {
-            for (auto& vi : v)
-                std::wcout << key << ": " << vi << '\n';
-            std::cout << '\n';
+            std::wcout << key << ": " << v.size() << '\n';
         }
 
         CloseHandle(hProcsSnap);
