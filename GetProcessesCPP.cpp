@@ -52,10 +52,6 @@ void WalkVS(DWORD d)
     }
 }
 
-bool CheckIfChildProcess(HANDLE p, HANDLE c)
-{
-    return false;
-}
 
 std::wstring ProcessIDName(HANDLE handle, DWORD pid)
 {
@@ -69,7 +65,7 @@ std::wstring ProcessIDName(HANDLE handle, DWORD pid)
         name = path;
         if (processMap.find(name) != processMap.end())
             processMap[name].push_back(pid);
-        std::wcout << name << ": " << pid << '\n';
+        //std::wcout << name << ": " << pid << '\n';
     }
 
     return name;
@@ -115,6 +111,26 @@ void GetCPUUsage(DWORD pid)
     CloseHandle(hProcess);
 }
 
+BOOL ResetProcessWalker(int count)
+{
+    PROCESSENTRY32 p;
+    p.dwSize = sizeof(PROCESSENTRY32);
+    if (!Process32First(hSnap, &p))
+    {
+        std::cout << "RESET FAILURE" << '\n';
+        return false;
+    }
+    while (count > 1)
+    {
+        if (Process32Next(hSnap, &p));
+        {
+            HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, p.th32ProcessID);
+            if (hProcess)
+                count--;
+        }
+    }
+}
+
 int main()
 {
     SYSTEM_INFO sysInfo;
@@ -148,17 +164,21 @@ int main()
         {
             hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, prEntry.th32ProcessID);
             BOOL critProc;
-
-            if (hProcess && IsProcessCritical(hProcess, &critProc))
+            if (hProcess)
             {
-                WalkVS(prEntry.th32ProcessID);
-                std::cout << "-------------------------" << std::endl;
-                //ProcessIDName(hProcess, prEntry.th32ParentProcessID);
                 critProcNum++;
+                if (IsProcessCritical(hProcess, &critProc))
+                {
+                    //std::wcout << ProcessIDName(hProcess, prEntry.th32ProcessID) << '\n';
+                    WalkVS(prEntry.th32ProcessID);
+                    if (!ResetProcessWalker(critProcNum))
+                        return 0;
+                }
+                std::cout << critProcNum << '\n' << "-------------------------" << std::endl;
             }
         }
 
-        std::cout << critProcNum << '\n';
+        //std::cout << critProcNum << '\n';
 
         if (Process32First(hProcsSnap, &prEntry))
         {
@@ -175,9 +195,6 @@ int main()
         CloseHandle(hProcsSnap);
 
         DWORD cpid;
-        HWND chromeHwnd = FindWindowA(0, ("Spotify"));
-        GetWindowThreadProcessId(chromeHwnd, &cpid);
-
         return 0;
         while (true)
         {
