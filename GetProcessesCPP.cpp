@@ -14,30 +14,42 @@
 static int numProcessors;
 static std::map<std::wstring,std::vector<DWORD>>processMap; //executable and # of subprocesses
 static std::map<std::wstring,std::vector<DWORD>>parentMap;
+static HANDLE hSnap;
 
-void WalkVS(DWORD d, HANDLE hSnap)
+void WalkVS(DWORD d)
 {
-    //PROCESSENTRY32 pr32;
-    //pr32.dwSize = sizeof(PROCESSENTRY32);
-    //DWORD id = d;
+    HANDLE hSnapCopy = hSnap;
+    PROCESSENTRY32 pr32;
+    pr32.dwSize = sizeof(PROCESSENTRY32);
+    HANDLE handle;
+    DWORD pid = d;
 
-    //HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, id);
-    //while (h != NULL)
-    //{
-    //    wchar_t* path = new wchar_t[MAX_PATH];
-    //    DWORD size = MAX_PATH;
+    if (!Process32First(hSnapCopy, &pr32))
+    {
+        std::cout << "PROCESS32FIRST FAILED" << std::endl;
+        return;
+    }
 
-    //    if (QueryFullProcessImageNameW(h, 0, path, &size))
-    //    {
-    //        std::wstring ws = path;
-    //        std::wcout << ws << ": " << id << '\n';
-    //    }
+    while (Process32Next(hSnapCopy, &pr32))
+    {
+        if (pr32.th32ProcessID == pid)
+        {
+            handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+            if (handle != NULL)
+            {
+                wchar_t* path = new wchar_t[MAX_PATH];
+                DWORD size = MAX_PATH;
 
-
-    //    CloseHandle(h);
-    //    id = pr32.th32ParentProcessID;
-    //    h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, id);
-    //}
+                if (QueryFullProcessImageNameW(handle, 0, path, &size))
+                {
+                    std::wstring ws = path;
+                    std::wcout << ws << ": " << pid << '\n';
+                }
+                CloseHandle(handle);
+                WalkVS(pr32.th32ParentProcessID);
+            }
+        }
+    }
 }
 
 bool CheckIfChildProcess(HANDLE p, HANDLE c)
@@ -114,6 +126,7 @@ int main()
     numProcessors = sysInfo.dwNumberOfProcessors;
     
     hProcsSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    hSnap = hProcsSnap;
     UINT32 critProcNum = 0;
 
     if (hProcsSnap != INVALID_HANDLE_VALUE)
@@ -127,8 +140,9 @@ int main()
             return 0;
         }
 
+        critProcNum++;
+
         EnumWindows(enumWindowsCB, reinterpret_cast<LPARAM>(&processMap));
-        std::cout << '\n' << '\n';
         HANDLE hProcess;
         while (Process32Next(hProcsSnap, &prEntry))
         {
@@ -137,19 +151,25 @@ int main()
 
             if (hProcess && IsProcessCritical(hProcess, &critProc))
             {
-                //if (prEntry.th32ParentProcessID == 3400)
-                //{
-                //    WalkVS(prEntry.th32ProcessID, hProcsSnap);
-                //    break;
-                //}
-                ProcessIDName(hProcess, prEntry.th32ProcessID);
+                WalkVS(prEntry.th32ProcessID);
+                std::cout << "-------------------------" << std::endl;
+                //ProcessIDName(hProcess, prEntry.th32ParentProcessID);
                 critProcNum++;
             }
         }
 
+        std::cout << critProcNum << '\n';
+
+        if (Process32First(hProcsSnap, &prEntry))
+        {
+            critProcNum++;
+        }
+
+        std::cout << critProcNum << '\n';
+
         for (auto& [key, v] : processMap)
         {
-            std::wcout << key << ": " << v.size() << '\n';
+            //std::wcout << key << ": " << v.size() << '\n';
         }
 
         CloseHandle(hProcsSnap);
