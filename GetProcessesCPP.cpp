@@ -23,6 +23,7 @@ void WalkVS(DWORD d)
     pr32.dwSize = sizeof(PROCESSENTRY32);
     HANDLE handle;
     DWORD pid = d;
+    BOOL found = false;
 
     if (!Process32First(hSnapCopy, &pr32))
     {
@@ -34,13 +35,14 @@ void WalkVS(DWORD d)
     {
         if (pr32.th32ProcessID == pid)
         {
+            found = true;
             handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
             if (handle != NULL)
             {
                 wchar_t* path = new wchar_t[MAX_PATH];
                 DWORD size = MAX_PATH;
-
-                if (QueryFullProcessImageNameW(handle, 0, path, &size))
+                BOOL criticalHit;
+                if (QueryFullProcessImageNameW(handle, 0, path, &size) && IsProcessCritical(handle, &criticalHit))
                 {
                     std::wstring ws = path;
                     std::wcout << ws << ": " << pid << '\n';
@@ -129,6 +131,8 @@ BOOL ResetProcessWalker(int count)
                 count--;
         }
     }
+
+    return true;
 }
 
 int main()
@@ -162,7 +166,7 @@ int main()
         HANDLE hProcess;
         while (Process32Next(hProcsSnap, &prEntry))
         {
-            hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, prEntry.th32ProcessID);
+            hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, prEntry.th32ProcessID);
             BOOL critProc;
             if (hProcess)
             {
