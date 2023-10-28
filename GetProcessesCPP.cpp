@@ -16,6 +16,20 @@ static std::map<std::wstring,std::vector<DWORD>>processMap; //executable and # o
 static std::map<std::wstring,std::vector<DWORD>>parentMap;
 static HANDLE hSnap;
 
+void splitDirectory(std::wstring dir)
+{
+    int i = 0;
+    for (int j = 0; j < dir.length(); j++)
+    {
+        if (dir[j] == L'\\')
+        {
+            std::wcout << dir.substr(i, j - i) << " | ";
+            i = ++j;
+        }
+    }
+    std::wcout << dir.substr(i, dir.length() - i) << std::endl;
+}
+
 void WalkVS(DWORD d)
 {
     HANDLE hSnapCopy = hSnap;
@@ -46,6 +60,7 @@ void WalkVS(DWORD d)
                 {
                     std::wstring ws = path;
                     std::wcout << ws << ": " << pid << '\n';
+                    splitDirectory(ws);
                 }
                 CloseHandle(handle);
                 WalkVS(pr32.th32ParentProcessID);
